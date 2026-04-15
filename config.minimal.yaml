@@ -1,0 +1,46 @@
+workdir: ./workdir
+download_workdir: ./workdir
+
+video:
+  url: https://www.youtube.com/watch?v=YOUR_VIDEO_ID
+  download_video: true
+  auth_method: none
+  pot_provider: none
+
+services:
+  translation: gemini
+  segmentation: rule
+
+models:
+  gemini:
+    # Keep this name in sync with the model provider's current naming.
+    translate: gemini-3-flash-preview
+    # Keep this name in sync with the model provider's current naming.
+    segmentation: gemini-3-flash-preview
+
+asr:
+  model_name: medium
+  device: auto
+  compute_type: auto
+  batch_size: auto
+  use_vocal_separation: false
+  speaker_diarization: false
+
+translation_context:
+  enabled: false
+  force_regenerate: false
+  file_name: translation_context.txt
+  source_max_chars: 12000
+
+render:
+  font_path:
+  font_family_en: DejaVu Sans
+  font_family_cn: Noto Sans CJK SC
+  subtitle_font_size_en: 13
+  subtitle_font_size_cn: 22
+  ffmpeg_bin: ffmpeg
+  ffprobe_bin: ffprobe
+  video_codec: auto
+  video_preset: slow
+  video_crf: 20
+  output_suffix: Done_
