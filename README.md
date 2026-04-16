@@ -1,5 +1,7 @@
 # Translate Open
 
+English | [简体中文](./README.zh-CN.md)
+
 `Translate_Open` is an open-source `step1-step4` video localization pipeline for long-form YouTube content.
 
 This public repository focuses on the core production path only:
