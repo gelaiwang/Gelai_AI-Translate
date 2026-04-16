@@ -89,6 +89,14 @@ python -m pip install -U pip
 python -m pip install -r requirements.txt
 ```
 
+Dependency notes:
+
+- `requirements.txt` includes both `google-generativeai` and `google-genai` intentionally:
+  `google-generativeai` is used for the Gemini direct API path, while `google-genai` is used for the Vertex path.
+- The pinned `torch` packages are only a baseline. If you run step2 on CUDA, you may need to reinstall
+  `torch`, `torchaudio`, and `torchvision` from the official PyTorch index for your exact CUDA version after the base install.
+- If you only want `step1`, stick to `requirements_download.txt`.
+
 ## Key Config
 
 For the lowest-friction first run, start from:
@@ -127,7 +135,7 @@ Notes:
 
 - `translation_context.txt` is the only context file kept in the public step3 flow
 - if the file already exists in a project directory, step3 will reuse it
-- if generation fails, step3 falls back to the built-in default context and continues
+- if generation fails, step3 falls back to the built-in generic context and continues
 
 `step4` editable render parameters:
 

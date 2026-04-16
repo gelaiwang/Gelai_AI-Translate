@@ -27,6 +27,15 @@ asr:
 
 This keeps the first run focused on getting ASR working first.
 
+## Dependency notes
+
+- `requirements.txt` keeps both Google SDKs on purpose:
+  `google-generativeai` is used for the Gemini direct API path, and `google-genai`
+  is used for the Vertex path.
+- The pinned `torch`, `torchaudio`, and `torchvision` versions are a baseline, not a universal CUDA guarantee.
+  If you use NVIDIA GPUs, reinstall the PyTorch stack from the official PyTorch wheel index for your exact CUDA runtime.
+- CPU-only users can usually keep the pinned defaults as-is.
+
 Operational model:
 
 - the default step2 path loads three core components: transcription, VAD, and alignment

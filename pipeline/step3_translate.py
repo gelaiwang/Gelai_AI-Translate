@@ -119,7 +119,7 @@ def check_srt_timestamp_gaps(
         console.print(f"[bold red]错误: 检查时间戳时发生意外错误: {e}[/bold red]")
 
 
-def generate_english_srt_with_retries(stem: str, project_dir: Path) -> bool:
+def generate_english_srt_with_retries(stem: str, project_dir: Path, workdir: Path) -> bool:
     console.print(
         Panel(
             f"处理项目 [bold cyan]{stem}[/bold cyan]：生成英文 SRT",
@@ -234,8 +234,8 @@ def generate_english_srt_with_retries(stem: str, project_dir: Path) -> bool:
         en_txt_path = project_dir / f"[EN]-{stem}.txt"
 
         # Compatibility fallback for legacy output paths that may still exist.
-        legacy_en_srt_path = WORKDIR / f"[EN]-{stem}.srt"
-        legacy_en_txt_path = WORKDIR / f"[EN]-{stem}.txt"
+        legacy_en_srt_path = workdir / f"[EN]-{stem}.srt"
+        legacy_en_txt_path = workdir / f"[EN]-{stem}.txt"
         if not en_srt_path.exists() and legacy_en_srt_path.exists():
             console.print(f"[yellow]Legacy EN SRT output detected; moving into current project_dir: {legacy_en_srt_path} -> {en_srt_path}[/yellow]")
             shutil.move(str(legacy_en_srt_path), str(en_srt_path))
@@ -244,7 +244,7 @@ def generate_english_srt_with_retries(stem: str, project_dir: Path) -> bool:
             shutil.move(str(legacy_en_txt_path), str(en_txt_path))
 
         console.print(f"[green]Generated EN outputs: EN SRT={en_srt_path}; EN TXT={en_txt_path}[/green]")
-        check_srt_timestamp_gaps(stem, project_dir, WORKDIR, console)
+        check_srt_timestamp_gaps(stem, project_dir, workdir, console)
     except Exception as e:
         console.print(f"[bold red]错误: 生成英文 SRT 时发生意外崩溃: {e}[/bold red]")
         import traceback
@@ -290,13 +290,11 @@ def translate_to_chinese_srt(stem: str, project_dir: Path) -> bool:
 
 
 def main():
-    global WORKDIR
     parser = argparse.ArgumentParser(description="完整字幕处理与翻译流水线")
     parser.add_argument("--workdir", type=Path, default=None,
                         help="工作目录（默认使用 config.yaml 中的 workdir）")
     args = parser.parse_args()
-    if args.workdir:
-        WORKDIR = args.workdir.resolve()
+    active_workdir = args.workdir.resolve() if args.workdir else WORKDIR
 
     console.print(
         Panel(
@@ -304,9 +302,9 @@ def main():
             expand=False,
         )
     )
-    console.print(f"Workdir: {WORKDIR}")
-    console.print(f"[cyan]Active WORKDIR: {WORKDIR}[/cyan]")
-    project_dirs = [d for d in WORKDIR.iterdir() if d.is_dir() and (d / "asr").exists()]
+    console.print(f"Workdir: {active_workdir}")
+    console.print(f"[cyan]Active WORKDIR: {active_workdir}[/cyan]")
+    project_dirs = [d for d in active_workdir.iterdir() if d.is_dir() and (d / "asr").exists()]
     if not project_dirs:
         console.print(
             "[yellow]在工作目录中未找到任何有效的项目文件夹（即包含asr子目录的文件夹）。[/yellow]"
@@ -330,7 +328,7 @@ def main():
             write_cn_txt_from_srt(cn_srt_path, cn_txt_path, console)
             continue
         if not en_srt_path.exists():
-            success_en = generate_english_srt_with_retries(stem, project_dir)
+            success_en = generate_english_srt_with_retries(stem, project_dir, active_workdir)
             if not success_en:
                 console.print(
                     f"[red]❌ 项目 '{stem}' 未能成功生成英文SRT，跳过此项目的后续步骤。[/red]"
@@ -338,7 +336,7 @@ def main():
                 continue
         else:
             console.print("[green]⏩ 检测到英文SRT已存在，跳过生成步骤。[/green]")
-            check_srt_timestamp_gaps(stem, project_dir, WORKDIR, console)
+            check_srt_timestamp_gaps(stem, project_dir, active_workdir, console)
         if not cn_srt_path.exists():
             success_cn = translate_to_chinese_srt(stem, project_dir)
             if not success_cn:

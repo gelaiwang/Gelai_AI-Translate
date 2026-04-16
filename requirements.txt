@@ -7,7 +7,9 @@ srt==3.5.3
 python-dateutil==2.9.0.post0
 
 openai==2.14.0
+# Gemini direct API path uses google-generativeai.
 google-generativeai==0.8.6
+# Vertex API path uses google-genai.
 google-genai==1.30.0
 httpx==0.28.1
 
@@ -16,6 +18,9 @@ scipy==1.15.3
 pydub==0.25.1
 librosa==0.11.0
 
+# The default pins are a baseline only. CUDA users may need to reinstall
+# torch/torchaudio/torchvision from the official PyTorch wheel index for their
+# exact CUDA runtime after installing this file.
 torch==2.5.1
 torchaudio==2.5.1
 torchvision==0.20.1

@@ -7,7 +7,9 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
+import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -235,13 +237,19 @@ def load_downloaded_ids() -> set[str]:
 
 def save_downloaded_ids(ids: set[str]) -> None:
     DOWNLOAD_RECORD_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with DOWNLOAD_RECORD_FILE.open("w", encoding="utf-8") as f:
-        json.dump(
-            {"downloaded_ids": sorted(ids), "last_updated": datetime.now().isoformat()},
-            f,
-            ensure_ascii=False,
-            indent=2,
-        )
+    payload = {"downloaded_ids": sorted(ids), "last_updated": datetime.now().isoformat()}
+    with tempfile.NamedTemporaryFile(
+        "w",
+        encoding="utf-8",
+        dir=DOWNLOAD_RECORD_FILE.parent,
+        prefix=f"{DOWNLOAD_RECORD_FILE.stem}.",
+        suffix=".tmp",
+        delete=False,
+    ) as tmp_file:
+        json.dump(payload, tmp_file, ensure_ascii=False, indent=2)
+        tmp_file.flush()
+        temp_path = Path(tmp_file.name)
+    temp_path.replace(DOWNLOAD_RECORD_FILE)
 
 
 def add_downloaded_id(video_id: str, existing_ids: set[str]) -> set[str]:
@@ -868,7 +876,12 @@ Examples:
         )
         console.print(f"[bold green]下载流程完成。WORKDIR: {WORKDIR}[/bold green]")
         return 0
-    except Exception:
+    except Exception as exc:
+        console.print(f"[bold red]下载流程失败: {exc}[/bold red]")
+        traceback.print_exc()
+        return 1
+    except BaseException as exc:
+        console.print(f"[bold red]下载流程被中断: {exc}[/bold red]")
         return 1
 
 

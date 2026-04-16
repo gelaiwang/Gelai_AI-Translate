@@ -6,19 +6,35 @@ import torch
 import torch.serialization
 import typing
 import collections
+from contextlib import contextmanager
 
-_original_torch_load = torch.load
-def _patched_torch_load(*args, **kwargs):
-    kwargs['weights_only'] = False
-    return _original_torch_load(*args, **kwargs)
-torch.load = _patched_torch_load
 
-if hasattr(torch.serialization, 'load'):
-    _original_serialization_load = torch.serialization.load
-    def _patched_serialization_load(*args, **kwargs):
-        kwargs['weights_only'] = False
-        return _original_serialization_load(*args, **kwargs)
-    torch.serialization.load = _patched_serialization_load
+@contextmanager
+def legacy_torch_load_compatibility():
+    """
+    Scope the unsafe compatibility override to legacy model-loading code paths.
+    This avoids leaving weights_only=False enabled for the entire process.
+    """
+    original_torch_load = torch.load
+    original_serialization_load = getattr(torch.serialization, "load", None)
+
+    def patched_torch_load(*args, **kwargs):
+        kwargs.setdefault("weights_only", False)
+        return original_torch_load(*args, **kwargs)
+
+    def patched_serialization_load(*args, **kwargs):
+        kwargs.setdefault("weights_only", False)
+        return original_serialization_load(*args, **kwargs)
+
+    torch.load = patched_torch_load
+    if original_serialization_load is not None:
+        torch.serialization.load = patched_serialization_load
+    try:
+        yield
+    finally:
+        torch.load = original_torch_load
+        if original_serialization_load is not None:
+            torch.serialization.load = original_serialization_load
 
 try:
     import omegaconf
@@ -159,11 +175,6 @@ def main():
 
     max_retries, retry_delay = 3, 5
 
-    try:
-        asr_model, vad_pipeline, align_model_tuple, device, batch_size = preload_models(console, logger)
-    except Exception:
-        sys.exit(1)
-
     video_exts = [".mp4", ".mov", ".mkv", ".flv", ".avi", ".webm"]
     console.print("\n[bold cyan]--- 模式：处理本地文件（扫描 WORKDIR） ---[/bold cyan]")
     initial_videos = discover_input_videos(console, BASE_WORKDIR, video_exts)
@@ -177,6 +188,12 @@ def main():
         sys.exit(0)
 
     console.print(f"\n[bold green]将处理 {len(videos_to_process)} 个新视频。[/bold green]")
+
+    try:
+        with legacy_torch_load_compatibility():
+            asr_model, vad_pipeline, align_model_tuple, device, batch_size = preload_models(console, logger)
+    except Exception:
+        sys.exit(1)
 
     # 阶段 3：循环处理每个视频
     for i, video_path in enumerate(videos_to_process):
@@ -192,57 +209,58 @@ def main():
             continue
 
         try:
-            # 步骤 1：提取音频
-            wav_output_path = project_dir / f"{normalized_stem}.wav"
-            if not wav_output_path.exists():
+            with legacy_torch_load_compatibility():
+                # 步骤 1：提取音频
+                wav_output_path = project_dir / f"{normalized_stem}.wav"
+                if not wav_output_path.exists():
+                    run_with_retries(
+                        extract_audio,
+                        max_retries,
+                        retry_delay,
+                        "步骤 1/5：提取音频",
+                        final_video_path,
+                        wav_output_path,
+                        sr=16000
+                    )
+
+                # 步骤 2：切分音频
+                chunks_dir = project_dir / "chunks"
+                if not (chunks_dir.exists() and any(chunks_dir.iterdir())):
+                     console.print("  [yellow]提示：音频切分会搜索静音片段。根据音频长度不同，这一步可能耗时较长，请耐心等待...[/yellow]")
+                     run_with_retries(split_audio, max_retries, retry_delay, "步骤 2/5：切分音频", wav_output_path, out_dir=chunks_dir)
+
+                if ASR_USE_VOCAL_SEPARATION:
+                    console.print("  [cyan]步骤 3/5：人声分离...[/cyan]")
+                    run_vocal_separation_on_project(project_dir, device, vad_pipeline, ASR_SNR_THRESHOLD)
+                else:
+                    console.print("  [dim]步骤 3/5：人声分离已禁用，跳过。[/dim]")
+
+                # 步骤 4：运行 ASR
                 run_with_retries(
-                    extract_audio,
+                    run_whisperx_on_project,
                     max_retries,
                     retry_delay,
-                    "步骤 1/5：提取音频",
-                    final_video_path,
-                    wav_output_path,
-                    sr=16000
+                    "步骤 4/5：语音识别",
+                    project_dir,
+                    asr_model,
+                    vad_pipeline,
+                    align_model_tuple,
+                    device,
+                    batch_size,
                 )
 
-            # 步骤 2：切分音频
-            chunks_dir = project_dir / "chunks"
-            if not (chunks_dir.exists() and any(chunks_dir.iterdir())):
-                 console.print("  [yellow]提示：音频切分会搜索静音片段。根据音频长度不同，这一步可能耗时较长，请耐心等待...[/yellow]")
-                 run_with_retries(split_audio, max_retries, retry_delay, "步骤 2/5：切分音频", wav_output_path, out_dir=chunks_dir)
-
-            if ASR_USE_VOCAL_SEPARATION:
-                console.print("  [cyan]步骤 3/5：人声分离...[/cyan]")
-                run_vocal_separation_on_project(project_dir, device, vad_pipeline, ASR_SNR_THRESHOLD)
-            else:
-                console.print("  [dim]步骤 3/5：人声分离已禁用，跳过。[/dim]")
-
-            # 步骤 4：运行 ASR
-            run_with_retries(
-                run_whisperx_on_project,
-                max_retries,
-                retry_delay,
-                "步骤 4/5：语音识别",
-                project_dir,
-                asr_model,
-                vad_pipeline,
-                align_model_tuple,
-                device,
-                batch_size,
-            )
-
-            # 步骤 5：说话人识别
-            if ASR_SPEAKER_DIARIZATION:
-                console.print("  [cyan]步骤 5/5：说话人识别...[/cyan]")
-                run_diarization_on_project(project_dir, device, ASR_MIN_SPEAKERS, ASR_MAX_SPEAKERS)
-            else:
-                console.print("  [dim]步骤 5/5：说话人识别已禁用，跳过。[/dim]")
+                # 步骤 5：说话人识别
+                if ASR_SPEAKER_DIARIZATION:
+                    console.print("  [cyan]步骤 5/5：说话人识别...[/cyan]")
+                    run_diarization_on_project(project_dir, device, ASR_MIN_SPEAKERS, ASR_MAX_SPEAKERS)
+                else:
+                    console.print("  [dim]步骤 5/5：说话人识别已禁用，跳过。[/dim]")
 
             console.print(f"[bold green]成功处理视频：{final_video_path.name}[/bold green]")
             # cleanup_wav_file(console, logger, project_dir)
 
         except Exception as e:
-            logger.error(f"处理视频 {video_path.name} 的流水线时发生致命错误。错误：{e}", exc_info=False)
+            logger.error(f"处理视频 {video_path.name} 的流水线时发生致命错误。错误：{e}", exc_info=True)
             console.print(f"[bold red]处理该视频时发生致命错误，已记录日志。将继续处理下一个视频。[/bold red]")
             continue
 
