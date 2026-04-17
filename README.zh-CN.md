@@ -185,7 +185,7 @@ python -m pip install -e .
 
 ### 仅下载环境
 
-如果你只想跑 `step1`，暂时也可以继续使用轻量路径：
+如果你只想跑 `step1`，也可以继续使用轻量依赖路径，并通过统一 CLI 运行：
 
 ```bash
 cd /path/to/Translate_Open
@@ -193,7 +193,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -U pip
 python -m pip install -r requirements_download.txt
-python -m pipeline.step1_download --workdir ./workdir --source "https://..."
+gelai-translate step1 --workdir ./workdir --source "https://..."
 ```
 
 ### 依赖说明
@@ -203,7 +203,7 @@ python -m pipeline.step1_download --workdir ./workdir --source "https://..."
 - 当前固定的 `torch` 版本只是一个基线。如果你在 CUDA 环境中运行 `step2`，可能需要根据自己的 CUDA 版本，从 PyTorch 官方源重新安装
   `torch`、`torchaudio` 和 `torchvision`。
 - 当前 `pip install -e .` 会安装打包 CLI 所需的完整依赖基线。
-- 如果你只需要 `step1`，请坚持使用 `requirements_download.txt`，并用 `python -m pipeline.step1_download` 运行。
+- 如果你只需要 `step1`，请坚持使用 `requirements_download.txt` 这条轻量依赖路径。
 
 ## 配置
 
@@ -308,7 +308,7 @@ render:
 ### Step1：下载
 
 ```bash
-python -m pipeline.step1_download \
+gelai-translate step1 \
   --workdir ./workdir \
   --source "https://www.youtube.com/watch?v=VIDEO_ID"
 ```
@@ -316,12 +316,12 @@ python -m pipeline.step1_download \
 或者：
 
 ```bash
-python -m pipeline.step1_download \
+gelai-translate step1 \
   --workdir ./workdir \
   --source "https://www.youtube.com/playlist?list=PLAYLIST_ID"
 ```
 
-如果 `video.pot_provider` 设成 `bgutil_http`，`pipeline.step1_download` 会在下载前自动检查或启动本地 `bgutil-ytdlp-pot-provider`。
+如果 `video.pot_provider` 设成 `bgutil_http`，`gelai-translate step1` 会在下载前自动检查或启动本地 `bgutil-ytdlp-pot-provider`。
 
 `step1` 的典型输出：
 
@@ -333,7 +333,7 @@ python -m pipeline.step1_download \
 ### Step2：导入与 ASR
 
 ```bash
-python -m pipeline.step2_ingest --workdir ./workdir
+gelai-translate step2 --workdir ./workdir
 ```
 
 `step2` 的典型输出：
@@ -348,7 +348,7 @@ python -m pipeline.step2_ingest --workdir ./workdir
 ### Step3：字幕翻译
 
 ```bash
-python -m pipeline.step3_translate --workdir ./workdir
+gelai-translate step3 --workdir ./workdir
 ```
 
 `step3` 的典型输出：
@@ -362,7 +362,7 @@ python -m pipeline.step3_translate --workdir ./workdir
 ### Step4：渲染
 
 ```bash
-python -m pipeline.step4_render --workdir ./workdir
+gelai-translate step4 --workdir ./workdir
 ```
 
 `step4` 的典型输出：

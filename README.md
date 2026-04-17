@@ -184,7 +184,7 @@ python -m pip install -e .
 
 ### Download-Only Environment
 
-If you only want `step1` and do not need the packaged CLI yet, you can still use the lightweight path:
+If you only want `step1`, you can still use the lightweight dependency path and call the packaged CLI after `pip install -e .`:
 
 ```bash
 cd /path/to/Translate_Open
@@ -192,7 +192,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -U pip
 python -m pip install -r requirements_download.txt
-python -m pipeline.step1_download --workdir ./workdir --source "https://..."
+gelai-translate step1 --workdir ./workdir --source "https://..."
 ```
 
 ### Dependency Notes
@@ -202,7 +202,7 @@ python -m pipeline.step1_download --workdir ./workdir --source "https://..."
 - The pinned `torch` packages are only a baseline. If you run `step2` on CUDA, you may need to reinstall
   `torch`, `torchaudio`, and `torchvision` from the official PyTorch index for your exact CUDA version after the base install.
 - `pip install -e .` currently installs the packaged CLI with the full dependency baseline.
-- If you only want `step1`, stick to `requirements_download.txt` and run `python -m pipeline.step1_download`.
+- If you only want `step1`, stick to `requirements_download.txt` for the lighter dependency path.
 
 ## Configuration
 
@@ -307,7 +307,7 @@ Platform font defaults:
 ### Step1: Download
 
 ```bash
-python -m pipeline.step1_download \
+gelai-translate step1 \
   --workdir ./workdir \
   --source "https://www.youtube.com/watch?v=VIDEO_ID"
 ```
@@ -315,12 +315,12 @@ python -m pipeline.step1_download \
 or
 
 ```bash
-python -m pipeline.step1_download \
+gelai-translate step1 \
   --workdir ./workdir \
   --source "https://www.youtube.com/playlist?list=PLAYLIST_ID"
 ```
 
-If `video.pot_provider` is set to `bgutil_http`, `pipeline.step1_download` will automatically check or start the local `bgutil-ytdlp-pot-provider` service before downloading.
+If `video.pot_provider` is set to `bgutil_http`, `gelai-translate step1` will automatically check or start the local `bgutil-ytdlp-pot-provider` service before downloading.
 
 Expected outputs from `step1`:
 
@@ -332,7 +332,7 @@ Expected outputs from `step1`:
 ### Step2: Ingest and ASR
 
 ```bash
-python -m pipeline.step2_ingest --workdir ./workdir
+gelai-translate step2 --workdir ./workdir
 ```
 
 Expected outputs from `step2`:
@@ -347,7 +347,7 @@ Expected outputs from `step2`:
 ### Step3: Subtitle Translation
 
 ```bash
-python -m pipeline.step3_translate --workdir ./workdir
+gelai-translate step3 --workdir ./workdir
 ```
 
 Expected outputs from `step3`:
@@ -361,7 +361,7 @@ Expected outputs from `step3`:
 ### Step4: Render
 
 ```bash
-python -m pipeline.step4_render --workdir ./workdir
+gelai-translate step4 --workdir ./workdir
 ```
 
 Expected outputs from `step4`:

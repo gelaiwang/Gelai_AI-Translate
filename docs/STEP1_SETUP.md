@@ -5,7 +5,7 @@ This document only covers the public `step1` download path:
 - `yt-dlp`
 - `bgutil-ytdlp-pot-provider`
 - optional cookies
-- `python -m pipeline.step1_download`
+- `gelai-translate step1`
 
 It does not cover `step2-step4`.
 
@@ -83,7 +83,7 @@ This should produce:
 /path/to/bgutil-ytdlp-pot-provider/server/build/main.js
 ```
 
-You do not need to start it manually if `video.pot_provider=bgutil_http`, because `pipeline.step1_download` will auto-start it when needed.
+You do not need to start it manually if `video.pot_provider=bgutil_http`, because `gelai-translate step1` will auto-start it when needed.
 
 ## 5. Configure `config.yaml`
 
@@ -153,7 +153,7 @@ Single video:
 ```bash
 cd /path/to/Translate_Open
 source .venv/bin/activate
-python -m pipeline.step1_download --workdir ./workdir --source "https://www.youtube.com/watch?v=YOUR_VIDEO_ID"
+gelai-translate step1 --workdir ./workdir --source "https://www.youtube.com/watch?v=YOUR_VIDEO_ID"
 ```
 
 Playlist:
@@ -161,7 +161,7 @@ Playlist:
 ```bash
 cd /path/to/Translate_Open
 source .venv/bin/activate
-python -m pipeline.step1_download --workdir ./workdir --source "https://www.youtube.com/playlist?list=YOUR_PLAYLIST_ID"
+gelai-translate step1 --workdir ./workdir --source "https://www.youtube.com/playlist?list=YOUR_PLAYLIST_ID"
 ```
 
 ## 8. What step1 writes
