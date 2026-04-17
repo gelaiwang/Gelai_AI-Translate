@@ -19,6 +19,7 @@ import yt_dlp
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
+from gelai_translate.runtime import apply_config_attrs, prepare_runtime
 from core.youtube_metadata import fetch_video_metadata
 from config import (
     AUTH_METHOD,
@@ -84,6 +85,42 @@ class _YTDLPLogger:
 
     def combined_messages(self) -> list[str]:
         return [*self.warnings, *self.errors]
+
+
+def _sync_runtime_config(config_path: Path | str | None = None) -> None:
+    global DOWNLOAD_RECORD_FILE, BGUTIL_HTTP_SENTINEL_HOME
+    config_module, _ = prepare_runtime(config_path=config_path)
+    apply_config_attrs(
+        globals(),
+        config_module,
+        {
+            "AUTH_METHOD": "AUTH_METHOD",
+            "COOKIES_FILE": "COOKIES_FILE",
+            "COOKIES_FROM_BROWSER": "COOKIES_FROM_BROWSER",
+            "DOWNLOAD_MAX_SLEEP_INTERVAL": "DOWNLOAD_MAX_SLEEP_INTERVAL",
+            "DOWNLOAD_MIN_SLEEP_INTERVAL": "DOWNLOAD_MIN_SLEEP_INTERVAL",
+            "DOWNLOAD_RATE_LIMIT": "DOWNLOAD_RATE_LIMIT",
+            "DOWNLOAD_SLEEP_REQUESTS": "DOWNLOAD_SLEEP_REQUESTS",
+            "DOWNLOAD_VIDEO": "DOWNLOAD_VIDEO",
+            "FALLBACK_CLIENTS": "FALLBACK_CLIENTS",
+            "FALLBACK_FORMATS": "FALLBACK_FORMATS",
+            "PLAYLIST_ITEMS": "PLAYLIST_ITEMS",
+            "PLAYER_CLIENT": "PLAYER_CLIENT",
+            "PRINT_FORMATS_ON_FAIL": "PRINT_FORMATS_ON_FAIL",
+            "VIDEO_URL": "VIDEO_URL",
+            "YOUTUBE_FETCH_POT": "YOUTUBE_FETCH_POT",
+            "YOUTUBE_BGUTIL_PROVIDER_ROOT": "YOUTUBE_BGUTIL_PROVIDER_ROOT",
+            "YOUTUBE_JSC_TRACE": "YOUTUBE_JSC_TRACE",
+            "YOUTUBE_PO_TOKENS": "YOUTUBE_PO_TOKENS",
+            "YOUTUBE_POT_BASE_URL": "YOUTUBE_POT_BASE_URL",
+            "YOUTUBE_POT_DISABLE_INNERTUBE": "YOUTUBE_POT_DISABLE_INNERTUBE",
+            "YOUTUBE_POT_PROVIDER": "YOUTUBE_POT_PROVIDER",
+            "YOUTUBE_POT_TRACE": "YOUTUBE_POT_TRACE",
+            "WORKDIR": "Download_WORKDIR",
+        },
+    )
+    DOWNLOAD_RECORD_FILE = WORKDIR / "downloaded_ids.json"
+    BGUTIL_HTTP_SENTINEL_HOME = WORKDIR / ".bgutil_http_only"
 
 
 def time_tag() -> str:
@@ -797,6 +834,64 @@ def download_videos_enhanced(
         raise RuntimeError(f"{failure_count} videos failed to download.")
 
 
+def run(
+    *,
+    config_path: Path | str | None = None,
+    workdir: Path | None = None,
+    source: str | None = None,
+    fmt: str | None = None,
+    download_video: bool | None = None,
+    force_redownload_id: str = "",
+    fallback_clients: str | None = None,
+    fallback_formats: str | None = None,
+    print_formats_on_fail: bool | None = None,
+) -> int:
+    global WORKDIR, DOWNLOAD_RECORD_FILE
+    _sync_runtime_config(config_path)
+    if workdir:
+        WORKDIR = workdir.resolve()
+        DOWNLOAD_RECORD_FILE = WORKDIR / "downloaded_ids.json"
+
+    active_source = source or VIDEO_URL
+    active_fmt = fmt or DEFAULT_FORMAT
+    active_download_video = DOWNLOAD_VIDEO if download_video is None else download_video
+    active_print_formats_on_fail = PRINT_FORMATS_ON_FAIL if print_formats_on_fail is None else print_formats_on_fail
+
+    if force_redownload_id:
+        ids = [v.strip() for v in force_redownload_id.split(",") if v.strip()]
+        if ids:
+            existing = load_downloaded_ids()
+            removed = 0
+            for vid in ids:
+                if vid in existing:
+                    existing.discard(vid)
+                    removed += 1
+                _remove_existing_video_artifacts(WORKDIR, vid)
+            if removed > 0:
+                save_downloaded_ids(existing)
+                console.print(f"[yellow]已从记录中移除 {removed} 个 ID: {ids}[/yellow]")
+
+    try:
+        ensure_bgutil_provider()
+        download_videos_enhanced(
+            active_source,
+            fmt=active_fmt,
+            download_video=active_download_video,
+            fallback_clients_raw=fallback_clients,
+            fallback_formats_raw=fallback_formats,
+            print_formats_on_fail=active_print_formats_on_fail,
+        )
+        console.print(f"[bold green]下载流程完成。WORKDIR: {WORKDIR}[/bold green]")
+        return 0
+    except Exception as exc:
+        console.print(f"[bold red]下载流程失败: {exc}[/bold red]")
+        traceback.print_exc()
+        return 1
+    except BaseException as exc:
+        console.print(f"[bold red]下载流程被中断: {exc}[/bold red]")
+        return 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Download YouTube videos or playlists with yt-dlp fallback logic and optional bgutil auto-start.",
@@ -845,44 +940,16 @@ Examples:
     )
     args = parser.parse_args()
 
-    if args.workdir:
-        global WORKDIR, DOWNLOAD_RECORD_FILE
-        WORKDIR = args.workdir.resolve()
-        DOWNLOAD_RECORD_FILE = WORKDIR / "downloaded_ids.json"
-
-    if args.force_redownload_id:
-        ids = [v.strip() for v in args.force_redownload_id.split(",") if v.strip()]
-        if ids:
-            existing = load_downloaded_ids()
-            removed = 0
-            for vid in ids:
-                if vid in existing:
-                    existing.discard(vid)
-                    removed += 1
-                _remove_existing_video_artifacts(WORKDIR, vid)
-            if removed > 0:
-                save_downloaded_ids(existing)
-                console.print(f"[yellow]已从记录中移除 {removed} 个 ID: {ids}[/yellow]")
-
-    try:
-        ensure_bgutil_provider()
-        download_videos_enhanced(
-            args.source,
-            fmt=args.fmt,
-            download_video=args.download_video,
-            fallback_clients_raw=args.fallback_clients,
-            fallback_formats_raw=args.fallback_formats,
-            print_formats_on_fail=args.print_formats_on_fail,
-        )
-        console.print(f"[bold green]下载流程完成。WORKDIR: {WORKDIR}[/bold green]")
-        return 0
-    except Exception as exc:
-        console.print(f"[bold red]下载流程失败: {exc}[/bold red]")
-        traceback.print_exc()
-        return 1
-    except BaseException as exc:
-        console.print(f"[bold red]下载流程被中断: {exc}[/bold red]")
-        return 1
+    return run(
+        workdir=args.workdir,
+        source=args.source,
+        fmt=args.fmt,
+        download_video=args.download_video,
+        force_redownload_id=args.force_redownload_id,
+        fallback_clients=args.fallback_clients,
+        fallback_formats=args.fallback_formats,
+        print_formats_on_fail=args.print_formats_on_fail,
+    )
 
 
 if __name__ == "__main__":

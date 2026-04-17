@@ -10,7 +10,18 @@ from dotenv import load_dotenv
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-CONFIG_YAML_PATH = BASE_DIR / "config.yaml"
+_config_env = os.environ.get("GELAI_CONFIG")
+if _config_env:
+    CONFIG_YAML_PATH = Path(_config_env).expanduser().resolve()
+else:
+    _cwd_config = Path.cwd() / "config.yaml"
+    _home_config = Path.home() / ".config" / "gelai-translate" / "config.yaml"
+    if _cwd_config.exists():
+        CONFIG_YAML_PATH = _cwd_config
+    elif _home_config.exists():
+        CONFIG_YAML_PATH = _home_config
+    else:
+        CONFIG_YAML_PATH = BASE_DIR / "config.yaml"
 ENV_PATH = BASE_DIR / ".env"
 
 if ENV_PATH.exists():

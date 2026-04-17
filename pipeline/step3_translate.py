@@ -12,6 +12,7 @@ from datetime import timedelta
 import json
 import srt
 
+from gelai_translate.runtime import apply_config_attrs, prepare_runtime
 from rich.console import Console
 from rich.panel import Panel
 
@@ -37,6 +38,33 @@ except ImportError as e:
     sys.exit(1)
 
 console = Console()
+
+
+def _sync_runtime_config(config_path: Path | str | None = None) -> None:
+    global process_audio_segment, validate_segments_structure, create_english_srt, generate_and_translate_srt
+    config_module, reloaded = prepare_runtime(
+        config_path=config_path,
+        module_names=[
+            "core.llm_segment",
+            "core.validate_segments",
+            "core.timestamp_matcher",
+            "core.llm_translate",
+        ],
+    )
+    apply_config_attrs(
+        globals(),
+        config_module,
+        {
+            "WORKDIR": "WORKDIR",
+            "CLOUD_LINE_BATCH_SIZE": "CLOUD_LINE_BATCH_SIZE",
+            "LOCAL_LINE_BATCH_SIZE": "LOCAL_LINE_BATCH_SIZE",
+            "TRANSLATION_SERVICE": "TRANSLATION_SERVICE",
+        },
+    )
+    process_audio_segment = reloaded["core.llm_segment"].process_audio_segment
+    validate_segments_structure = reloaded["core.validate_segments"].validate_segments_structure
+    create_english_srt = reloaded["core.timestamp_matcher"].create_english_srt
+    generate_and_translate_srt = reloaded["core.llm_translate"].generate_and_translate_srt
 
 
 def write_cn_txt_from_srt(cn_srt_path: Path, cn_txt_path: Path, console: Console):
@@ -289,12 +317,9 @@ def translate_to_chinese_srt(stem: str, project_dir: Path) -> bool:
     return True
 
 
-def main():
-    parser = argparse.ArgumentParser(description="完整字幕处理与翻译流水线")
-    parser.add_argument("--workdir", type=Path, default=None,
-                        help="工作目录（默认使用 config.yaml 中的 workdir）")
-    args = parser.parse_args()
-    active_workdir = args.workdir.resolve() if args.workdir else WORKDIR
+def run(*, workdir: Path | None = None, config_path: Path | str | None = None) -> int:
+    _sync_runtime_config(config_path)
+    active_workdir = workdir.resolve() if workdir else WORKDIR
 
     console.print(
         Panel(
@@ -309,7 +334,7 @@ def main():
         console.print(
             "[yellow]在工作目录中未找到任何有效的项目文件夹（即包含asr子目录的文件夹）。[/yellow]"
         )
-        return
+        return 0
     console.print(f"发现 {len(project_dirs)} 个有效项目，准备处理...")
     for i, project_dir in enumerate(project_dirs):
         stem = project_dir.name
@@ -368,6 +393,15 @@ def main():
         )
     else:
         console.print("[green]✅ 无需清理，未找到任何临时 'output' 文件夹。[/green]")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="完整字幕处理与翻译流水线")
+    parser.add_argument("--workdir", type=Path, default=None,
+                        help="工作目录（默认使用 config.yaml 中的 workdir）")
+    args = parser.parse_args()
+    return run(workdir=args.workdir)
 
 
 if __name__ == "__main__":
@@ -375,4 +409,4 @@ if __name__ == "__main__":
     os.chdir(script_dir)
     if str(script_dir) not in sys.path:
         sys.path.insert(0, str(script_dir))
-    main()
+    raise SystemExit(main())

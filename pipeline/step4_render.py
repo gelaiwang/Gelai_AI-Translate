@@ -8,6 +8,8 @@ import re
 import time
 import datetime
 
+from gelai_translate.runtime import apply_config_attrs, prepare_runtime
+
 try:
     from config import (
         WORKDIR,
@@ -55,6 +57,37 @@ CN_SUB_ALIGNMENT = "2"
 SUB_MARGIN_V_EN = "10"
 SUB_MARGIN_V_CN = "27"
 SUB_MARGIN_H = "20"
+
+
+def _sync_runtime_config(config_path: Path | str | None = None) -> None:
+    config_module, _ = prepare_runtime(config_path=config_path)
+    apply_config_attrs(
+        globals(),
+        config_module,
+        {
+            "WORKDIR": "WORKDIR",
+            "FONT_PATH": "FONT_PATH",
+            "FONT_FAMILY_EN": "FONT_FAMILY_EN",
+            "FONT_FAMILY_CN": "FONT_FAMILY_CN",
+            "SUBTITLE_FONT_SIZE_EN": "SUBTITLE_FONT_SIZE_EN",
+            "SUBTITLE_FONT_SIZE_CN": "SUBTITLE_FONT_SIZE_CN",
+            "RENDER_FFMPEG_BIN": "RENDER_FFMPEG_BIN",
+            "RENDER_FFPROBE_BIN": "RENDER_FFPROBE_BIN",
+            "RENDER_VIDEO_CODEC": "RENDER_VIDEO_CODEC",
+            "RENDER_VIDEO_PRESET": "RENDER_VIDEO_PRESET",
+            "RENDER_VIDEO_CRF": "RENDER_VIDEO_CRF",
+            "RENDER_OUTPUT_SUFFIX": "RENDER_OUTPUT_SUFFIX",
+        },
+    )
+    globals()["FFMPEG_PATH"] = RENDER_FFMPEG_BIN
+    globals()["FFPROBE_PATH"] = RENDER_FFPROBE_BIN
+    globals()["OUTPUT_VIDEO_PRESET"] = RENDER_VIDEO_PRESET
+    globals()["OUTPUT_VIDEO_CRF"] = RENDER_VIDEO_CRF
+    globals()["OUTPUT_VIDEO_SUFFIX"] = RENDER_OUTPUT_SUFFIX
+    globals()["FONT_FILE_EN"] = FONT_FAMILY_EN
+    globals()["FONT_FILE_CN"] = FONT_FAMILY_CN
+    globals()["FONT_SIZE_EN"] = str(SUBTITLE_FONT_SIZE_EN)
+    globals()["FONT_SIZE_CN"] = str(SUBTITLE_FONT_SIZE_CN)
 
 def resolve_video_codec() -> str:
     if RENDER_VIDEO_CODEC and RENDER_VIDEO_CODEC != "auto":
@@ -247,24 +280,20 @@ def burn_video(video_path: Path, en_srt_path: Path, cn_srt_path: Path, output_pa
 
     return run_ffmpeg_command(ffmpeg_cmd, video_path.name)
 
-def main():
-    parser = argparse.ArgumentParser(description="Batch render bilingual burned-in videos")
-    parser.add_argument("--workdir", type=Path, default=None,
-                        help="工作目录（默认使用 config.yaml 中的 workdir）")
-    args = parser.parse_args()
-
-    workdir_from_config = (args.workdir.resolve() if args.workdir
+def run(*, workdir: Path | None = None, config_path: Path | str | None = None) -> int:
+    _sync_runtime_config(config_path)
+    workdir_from_config = (workdir.resolve() if workdir
                            else Path(WORKDIR).expanduser().resolve())
     if not workdir_from_config.is_dir():
         print(f"❌ Error: WORKDIR '{workdir_from_config}' not found or is not a directory.")
-        sys.exit(1)
+        return 1
 
     print(f"📂 Scanning project folders in WORKDIR: {workdir_from_config}")
 
     project_dirs = [d for d in workdir_from_config.iterdir() if d.is_dir()]
     if not project_dirs:
         print(f"ℹ️ No project folders found in '{workdir_from_config}'. Nothing to do.")
-        sys.exit(0)
+        return 0
 
     videos_to_process = []
     missing_files_projects = []
@@ -307,7 +336,7 @@ def main():
 
     if not videos_to_process:
         print("ℹ️ No new projects found ready to be processed.")
-        sys.exit(0)
+        return 0
 
     print(f"\n🎬 Found {len(videos_to_process)} video(s) to process. Starting burning process...")
     successful_burns, failed_burns = 0, 0
@@ -332,9 +361,19 @@ def main():
 
     if failed_burns == 0:
         print("🎉 All selected videos processed successfully!")
+        return 0
     else:
         print(f"⚠️  {failed_burns} video(s) failed during processing. Please check the logs above.")
+        return 1
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Batch render bilingual burned-in videos")
+    parser.add_argument("--workdir", type=Path, default=None,
+                        help="工作目录（默认使用 config.yaml 中的 workdir）")
+    args = parser.parse_args()
+    return run(workdir=args.workdir)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

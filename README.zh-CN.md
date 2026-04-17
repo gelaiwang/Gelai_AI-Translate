@@ -95,26 +95,97 @@
 
 ## 快速开始
 
-如果你只想先跑通最短路径，建议先从 `step1` 开始。
+如果你只想先跑通最短路径，建议先用统一 CLI 跑 `step1`。
 
 ```bash
 cd /path/to/Translate_Open
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -U pip
-python -m pip install -r requirements_download.txt
+python -m pip install -e .
 export GEMINI_API_KEY=your_api_key_here
 cp config.minimal.yaml config.yaml
-python -m pipeline.step1_download --workdir ./workdir --source "https://www.youtube.com/playlist?list=YOUR_PLAYLIST_ID"
+gelai-translate step1 --workdir ./workdir --source "https://www.youtube.com/playlist?list=YOUR_PLAYLIST_ID"
 ```
 
 上面这条命令只执行 `step1`。如果你要跑完整流程，需要安装完整依赖，然后再依次执行后续步骤。
 
+## 统一 CLI
+
+现在仓库已经提供统一命令入口：
+
+```bash
+gelai-translate step1 --workdir ./workdir --source "https://..."
+gelai-translate step2 --workdir ./workdir
+gelai-translate step3 --workdir ./workdir
+gelai-translate step4 --workdir ./workdir
+```
+
+如果你要指定某个配置文件，可以这样：
+
+```bash
+gelai-translate --config ./config.yaml step1 --workdir ./workdir --source "https://..."
+```
+
+## Runtime API
+
+每个步骤现在也都暴露了 `run(...)` 函数，可以直接在同一进程内调用。
+
+这就是后续 GUI 或其它 Python 程序集成时应该走的路径，
+不需要每一步都通过 subprocess 再起一个命令。
+
+示例：
+
+```python
+from pathlib import Path
+
+from pipeline.step1_download import run as step1_run
+from pipeline.step2_ingest import run as step2_run
+from pipeline.step3_translate import run as step3_run
+from pipeline.step4_render import run as step4_run
+
+config_path = Path("./config.yaml")
+workdir = Path("./workdir")
+
+step1_run(config_path=config_path, workdir=workdir, source="https://...")
+step2_run(config_path=config_path, workdir=workdir)
+step3_run(config_path=config_path, workdir=workdir)
+step4_run(config_path=config_path, workdir=workdir)
+```
+
+当前各步骤入口：
+
+- `pipeline.step1_download.run(config_path=None, workdir=None, source=..., ...)`
+- `pipeline.step2_ingest.run(config_path=None, workdir=None)`
+- `pipeline.step3_translate.run(config_path=None, workdir=None)`
+- `pipeline.step4_render.run(config_path=None, workdir=None)`
+
+现在的运行时层已经支持在 `config_path` 变化时刷新依赖配置的模块，
+所以在同一个长驻进程里重复调用，比以前安全得多。
+
+但边界也要说清楚：
+
+- 现在已经适合 GUI 直接调用 `run(...)`
+- 但它还不是完整的任务编排框架
+- 目前还没有内建的进度事件、任务队列、取消机制这类 GUI 产品层能力
+
 ## 安装
+
+### Editable Install
+
+如果你想直接使用打包后的 `gelai-translate` CLI，使用这个：
+
+```bash
+cd /path/to/Translate_Open
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -U pip
+python -m pip install -e .
+```
 
 ### 仅下载环境
 
-如果你只想跑 `step1`，使用这个：
+如果你只想跑 `step1`，暂时也可以继续使用轻量路径：
 
 ```bash
 cd /path/to/Translate_Open
@@ -122,18 +193,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -U pip
 python -m pip install -r requirements_download.txt
-```
-
-### 完整 step1-step4 环境
-
-如果你想跑完整流程，使用这个：
-
-```bash
-cd /path/to/Translate_Open
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -U pip
-python -m pip install -r requirements.txt
+python -m pipeline.step1_download --workdir ./workdir --source "https://..."
 ```
 
 ### 依赖说明
@@ -142,7 +202,8 @@ python -m pip install -r requirements.txt
   `google-generativeai` 用于 Gemini 直连 API 路径，`google-genai` 用于 Vertex 路径。
 - 当前固定的 `torch` 版本只是一个基线。如果你在 CUDA 环境中运行 `step2`，可能需要根据自己的 CUDA 版本，从 PyTorch 官方源重新安装
   `torch`、`torchaudio` 和 `torchvision`。
-- 如果你只需要 `step1`，请坚持使用 `requirements_download.txt`。
+- 当前 `pip install -e .` 会安装打包 CLI 所需的完整依赖基线。
+- 如果你只需要 `step1`，请坚持使用 `requirements_download.txt`，并用 `python -m pipeline.step1_download` 运行。
 
 ## 配置
 

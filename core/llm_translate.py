@@ -109,15 +109,15 @@ def _normalize_temperature(value: object, *, default: float, label: str) -> floa
 def _configure_logger(log_path: Path) -> None:
     global LOG_FILE_PATH
     LOG_FILE_PATH = log_path
-    if logger.handlers:
-        return
-    logging.basicConfig(
-        filename=LOG_FILE_PATH,
-        level=logging.WARNING,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        encoding='utf-8',
-        filemode='a'
-    )
+    logger.setLevel(logging.WARNING)
+    for handler in list(logger.handlers):
+        if isinstance(handler, logging.FileHandler):
+            logger.removeHandler(handler)
+            handler.close()
+    file_handler = logging.FileHandler(LOG_FILE_PATH, mode="a", encoding="utf-8")
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
 
 
 def _ensure_runtime_initialized() -> None:

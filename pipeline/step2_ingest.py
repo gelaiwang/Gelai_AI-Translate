@@ -77,6 +77,7 @@ import logging
 import time
 from typing import Optional
 from rich.console import Console
+from gelai_translate.runtime import apply_config_attrs, prepare_runtime
 
 # 人声分离依赖
 try:
@@ -132,13 +133,54 @@ LOG_FILE = BASE_WORKDIR / "pipeline_errors.log"
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.ERROR)
 if not logger.handlers:
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logger.addHandler(console_handler)
+
+
+def _configure_logger_file(log_path: Path) -> None:
+    global LOG_FILE
+    LOG_FILE = log_path
+    for handler in list(logger.handlers):
+        if isinstance(handler, logging.FileHandler):
+            logger.removeHandler(handler)
+            handler.close()
     file_handler = logging.FileHandler(LOG_FILE, mode='a', encoding='utf-8')
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
+
+
+_configure_logger_file(LOG_FILE)
+
+
+def _sync_runtime_config(config_path: Path | str | None = None) -> None:
+    global preload_models, run_whisperx_on_project, run_diarization_on_project
+    config_module, reloaded = prepare_runtime(
+        config_path=config_path,
+        module_names=[
+            "core.step2_runtime",
+            "core.step2_asr",
+            "core.step2_diarization",
+        ],
+    )
+    apply_config_attrs(
+        globals(),
+        config_module,
+        {
+            "BASE_WORKDIR": "WORKDIR",
+            "ASR_LANGUAGE": "ASR_LANGUAGE",
+            "ASR_USE_VOCAL_SEPARATION": "ASR_USE_VOCAL_SEPARATION",
+            "ASR_SNR_THRESHOLD": "ASR_SNR_THRESHOLD",
+            "ASR_SPEAKER_DIARIZATION": "ASR_SPEAKER_DIARIZATION",
+            "ASR_MIN_SPEAKERS": "ASR_MIN_SPEAKERS",
+            "ASR_MAX_SPEAKERS": "ASR_MAX_SPEAKERS",
+            "ASR_HF_TOKEN_ENV": "ASR_HF_TOKEN_ENV",
+        },
+    )
+    preload_models = reloaded["core.step2_runtime"].preload_models
+    run_whisperx_on_project = reloaded["core.step2_asr"].run_whisperx_on_project
+    run_diarization_on_project = reloaded["core.step2_diarization"].run_diarization_on_project
 
 # --- 辅助函数 ---
 
@@ -159,16 +201,14 @@ def run_with_retries(func, max_retries: int, retry_delay: int, description: str,
 
 # --- SNR 估算函数：用于判断是否需要做人声分离 ---
 # --- 主执行流程 ---
-def main():
+def run(*, workdir: Path | None = None, config_path: Path | str | None = None) -> int:
     global BASE_WORKDIR, LOG_FILE
-    parser = argparse.ArgumentParser(description="视频导入流程（音频提取 + 人声分离 + ASR）")
-    parser.add_argument("--workdir", type=Path, default=None,
-                        help="工作目录（默认使用 config.yaml 中的 workdir）")
-    args = parser.parse_args()
-    if args.workdir:
-        BASE_WORKDIR = args.workdir.resolve()
+    _sync_runtime_config(config_path)
+    if workdir:
+        BASE_WORKDIR = workdir.resolve()
         BASE_WORKDIR.mkdir(parents=True, exist_ok=True)
         LOG_FILE = BASE_WORKDIR / "pipeline_errors.log"
+    _configure_logger_file(BASE_WORKDIR / "pipeline_errors.log")
 
     console.print("[bold magenta]=== 视频导入流程启动 ===[/bold magenta]")
     console.print(f"工作目录（WORKDIR）：{BASE_WORKDIR}")
@@ -180,12 +220,12 @@ def main():
     initial_videos = discover_input_videos(console, BASE_WORKDIR, video_exts)
     if not initial_videos:
         console.print("\n[yellow]仍未找到任何可处理的视频文件。任务结束。[/yellow]")
-        sys.exit(0)
+        return 0
 
     videos_to_process = select_videos_to_process(console, BASE_WORKDIR, initial_videos, ASR_SPEAKER_DIARIZATION)
     if not videos_to_process:
         console.print("\n[green]找到的视频均已处理完成，无需执行新任务。[/green]")
-        sys.exit(0)
+        return 0
 
     console.print(f"\n[bold green]将处理 {len(videos_to_process)} 个新视频。[/bold green]")
 
@@ -193,7 +233,7 @@ def main():
         with legacy_torch_load_compatibility():
             asr_model, vad_pipeline, align_model_tuple, device, batch_size = preload_models(console, logger)
     except Exception:
-        sys.exit(1)
+        return 1
 
     # 阶段 3：循环处理每个视频
     for i, video_path in enumerate(videos_to_process):
@@ -267,6 +307,15 @@ def main():
     console.print(f"\n{'='*80}")
     console.print("[bold green]所有任务处理完毕。[/bold green]")
     console.print(f"  如有错误，请检查日志文件：{LOG_FILE}")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="视频导入流程（音频提取 + 人声分离 + ASR）")
+    parser.add_argument("--workdir", type=Path, default=None,
+                        help="工作目录（默认使用 config.yaml 中的 workdir）")
+    args = parser.parse_args()
+    return run(workdir=args.workdir)
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

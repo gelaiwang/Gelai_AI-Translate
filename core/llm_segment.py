@@ -43,13 +43,15 @@ from core.validate_segments import normalize_text
 
 # --- 日志记录设定 ---
 LOG_FILE_PATH = WORKDIR / "llm_segment.log"
-logging.basicConfig(
-    level=logging.ERROR,
-    format='%(asctime)s - [%(levelname)s] - %(message)s',
-    filename=LOG_FILE_PATH,
-    filemode='a',
-    encoding='utf-8'
-)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.ERROR)
+for handler in list(logger.handlers):
+    if isinstance(handler, logging.FileHandler):
+        logger.removeHandler(handler)
+        handler.close()
+_file_handler = logging.FileHandler(LOG_FILE_PATH, mode='a', encoding='utf-8')
+_file_handler.setFormatter(logging.Formatter('%(asctime)s - [%(levelname)s] - %(message)s'))
+logger.addHandler(_file_handler)
 
 
 # --- 提示词模板 ---
@@ -763,17 +765,17 @@ def split_text_with_llm(text: str, segment_id: int) -> list:
     if seg_service == "gemini" and genai is None:
         msg = "SEGMENTATION_SERVICE=gemini 但未安装 google-generativeai，无法进行 LLM 分句。"
         print(f"Warning: {msg}")
-        logging.error(msg)
+        logger.error(msg)
         return []
     if seg_service in {"grok", "local", "deepseek"} and OpenAI is None:
         msg = f"SEGMENTATION_SERVICE={seg_service} 但未安装 openai，无法进行 LLM 分句。"
         print(f"Warning: {msg}")
-        logging.error(msg)
+        logger.error(msg)
         return []
     if seg_service == "deepseek" and not DEEPSEEK_API_KEY:
         msg = "SEGMENTATION_SERVICE=deepseek 但未配置 DEEPSEEK_API_KEY，无法进行 LLM 分句。"
         print(f"Warning: {msg}")
-        logging.error(msg)
+        logger.error(msg)
         return []
 
     for attempt in range(max_retries):
@@ -862,7 +864,7 @@ def split_text_with_llm(text: str, segment_id: int) -> list:
                     f"LLM 原始回应: {raw_response_text if raw_response_text else '无'}\n"
                     f"-----------------------------------------"
                 )
-                logging.error(log_entry)
+                logger.error(log_entry)
                 print(f"❌ 所有重试均失败。详细错误已记录至 {LOG_FILE_PATH}")
 
     return []
@@ -983,7 +985,7 @@ def process_audio_segment(segment_id: int, asr_dir: Path, output_dir: Path) -> b
     except Exception as e:
         error_msg = f"🔥🔥🔥 处理 segment {segment_id} 时发生严重错误: {e}"
         print(error_msg)
-        logging.error(error_msg)
+        logger.error(error_msg)
         import traceback
         traceback.print_exc()
         return False

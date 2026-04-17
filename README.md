@@ -95,26 +95,96 @@ A typical project folder after the full pipeline may contain:
 
 ## Quick Start
 
-If you want the shortest first-run path, start with `step1` only.
+If you want the shortest first-run path, start with the packaged CLI and `step1` only.
 
 ```bash
 cd /path/to/Translate_Open
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -U pip
-python -m pip install -r requirements_download.txt
+python -m pip install -e .
 export GEMINI_API_KEY=your_api_key_here
 cp config.minimal.yaml config.yaml
-python -m pipeline.step1_download --workdir ./workdir --source "https://www.youtube.com/playlist?list=YOUR_PLAYLIST_ID"
+gelai-translate step1 --workdir ./workdir --source "https://www.youtube.com/playlist?list=YOUR_PLAYLIST_ID"
 ```
 
 That command only runs `step1`. To run the full pipeline, install full dependencies and then execute the later steps explicitly.
 
+## Packaged CLI
+
+The repository now exposes a unified CLI:
+
+```bash
+gelai-translate step1 --workdir ./workdir --source "https://..."
+gelai-translate step2 --workdir ./workdir
+gelai-translate step3 --workdir ./workdir
+gelai-translate step4 --workdir ./workdir
+```
+
+You can also point to a specific config file:
+
+```bash
+gelai-translate --config ./config.yaml step1 --workdir ./workdir --source "https://..."
+```
+
+## Runtime API
+
+The pipeline steps also expose `run(...)` functions for direct in-process use.
+
+This is the intended integration path for a future GUI or another Python application,
+so you do not need to shell out to subprocesses for every step.
+
+Example:
+
+```python
+from pathlib import Path
+
+from pipeline.step1_download import run as step1_run
+from pipeline.step2_ingest import run as step2_run
+from pipeline.step3_translate import run as step3_run
+from pipeline.step4_render import run as step4_run
+
+config_path = Path("./config.yaml")
+workdir = Path("./workdir")
+
+step1_run(config_path=config_path, workdir=workdir, source="https://...")
+step2_run(config_path=config_path, workdir=workdir)
+step3_run(config_path=config_path, workdir=workdir)
+step4_run(config_path=config_path, workdir=workdir)
+```
+
+Current step entrypoints:
+
+- `pipeline.step1_download.run(config_path=None, workdir=None, source=..., ...)`
+- `pipeline.step2_ingest.run(config_path=None, workdir=None)`
+- `pipeline.step3_translate.run(config_path=None, workdir=None)`
+- `pipeline.step4_render.run(config_path=None, workdir=None)`
+
+The runtime layer now refreshes config-dependent modules when `config_path` changes,
+so repeated calls from the same long-lived process are safer than before.
+
+That said, this is still a script-first codebase.
+It is ready for direct GUI integration at the `run(...)` level,
+but it is not yet a full task-orchestration framework with built-in progress events,
+job queues, or cancellation primitives.
+
 ## Installation
+
+### Editable Install
+
+Use this when you want the packaged `gelai-translate` CLI:
+
+```bash
+cd /path/to/Translate_Open
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -U pip
+python -m pip install -e .
+```
 
 ### Download-Only Environment
 
-Use this when you only want `step1`.
+If you only want `step1` and do not need the packaged CLI yet, you can still use the lightweight path:
 
 ```bash
 cd /path/to/Translate_Open
@@ -122,18 +192,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -U pip
 python -m pip install -r requirements_download.txt
-```
-
-### Full Step1-Step4 Environment
-
-Use this when you want the full pipeline.
-
-```bash
-cd /path/to/Translate_Open
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -U pip
-python -m pip install -r requirements.txt
+python -m pipeline.step1_download --workdir ./workdir --source "https://..."
 ```
 
 ### Dependency Notes
@@ -142,7 +201,8 @@ python -m pip install -r requirements.txt
   `google-generativeai` is used for the Gemini direct API path, while `google-genai` is used for the Vertex path.
 - The pinned `torch` packages are only a baseline. If you run `step2` on CUDA, you may need to reinstall
   `torch`, `torchaudio`, and `torchvision` from the official PyTorch index for your exact CUDA version after the base install.
-- If you only want `step1`, stick to `requirements_download.txt`.
+- `pip install -e .` currently installs the packaged CLI with the full dependency baseline.
+- If you only want `step1`, stick to `requirements_download.txt` and run `python -m pipeline.step1_download`.
 
 ## Configuration
 
