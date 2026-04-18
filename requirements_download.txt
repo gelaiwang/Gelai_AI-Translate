@@ -1,0 +1,5 @@
+python-dotenv==1.2.1
+PyYAML==6.0.3
+rich==14.2.0
+
+yt-dlp==2026.3.3

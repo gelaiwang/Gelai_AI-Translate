@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gelai-translate"
+version = "0.1.0"
+description = "Open-source step1-step4 video localization pipeline for long-form YouTube content."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "python-dotenv==1.2.1",
+  "PyYAML==6.0.3",
+  "rich==14.2.0",
+  "PySide6==6.10.0",
+  "yt-dlp==2026.3.3",
+  "srt==3.5.3",
+  "python-dateutil==2.9.0.post0",
+  "openai==2.14.0",
+  "google-generativeai==0.8.6",
+  "google-genai==1.30.0",
+  "httpx==0.28.1",
+  "numpy==2.2.6",
+  "scipy==1.15.3",
+  "pydub==0.25.1",
+  "librosa==0.11.0",
+  "torch==2.5.1",
+  "torchaudio==2.5.1",
+  "torchvision==0.20.1",
+  "whisperx==3.4.3",
+  "pyannote.audio==3.3.2",
+  "audio-separator==0.40.0",
+]
+
+[project.scripts]
+gelai-translate = "gelai_translate.cli:main"
+gelai-translate-gui = "gelai_translate.gui.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["gelai_translate*", "pipeline*", "core*", "config*"]
+
+[tool.setuptools.package-data]
+"config" = ["prompts/*.txt"]
