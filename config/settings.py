@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import platform
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -9,7 +10,10 @@ import yaml
 from dotenv import load_dotenv
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+if getattr(sys, "frozen", False) and getattr(sys, "_MEIPASS", None):
+    BASE_DIR = Path(sys._MEIPASS).resolve()
+else:
+    BASE_DIR = Path(__file__).resolve().parent.parent
 _config_env = os.environ.get("GELAI_CONFIG")
 if _config_env:
     CONFIG_YAML_PATH = Path(_config_env).expanduser().resolve()

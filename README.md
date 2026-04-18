@@ -90,6 +90,7 @@ A typical project folder after the full pipeline may contain:
 - `docs/STEP2_SETUP.md`
 - `docs/STEP3_SETUP.md`
 - `docs/STEP4_SETUP.md`
+- `docs/DESKTOP_GUI.md`
 - `config.minimal.yaml`
 - `config.example.yaml`
 
@@ -126,6 +127,21 @@ You can also point to a specific config file:
 ```bash
 gelai-translate --config ./config.yaml step1 --workdir ./workdir --source "https://..."
 ```
+
+## Desktop GUI
+
+The repository now also includes an early desktop GUI scaffold built with `PySide6`.
+
+Start it in development mode with:
+
+```bash
+gelai-translate-gui
+```
+
+See:
+
+- [`docs/DESKTOP_GUI.md`](./docs/DESKTOP_GUI.md)
+- [`packaging/windows/README.md`](./packaging/windows/README.md)
 
 ## Runtime API
 

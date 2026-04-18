@@ -90,6 +90,7 @@
 - `docs/STEP2_SETUP.md`
 - `docs/STEP3_SETUP.md`
 - `docs/STEP4_SETUP.md`
+- `docs/DESKTOP_GUI.zh-CN.md`
 - `config.minimal.yaml`
 - `config.example.yaml`
 
@@ -126,6 +127,21 @@ gelai-translate step4 --workdir ./workdir
 ```bash
 gelai-translate --config ./config.yaml step1 --workdir ./workdir --source "https://..."
 ```
+
+## Desktop GUI
+
+仓库现在也已经带有一版基于 `PySide6` 的早期桌面 GUI 骨架。
+
+开发环境启动方式：
+
+```bash
+gelai-translate-gui
+```
+
+参见：
+
+- [`docs/DESKTOP_GUI.zh-CN.md`](./docs/DESKTOP_GUI.zh-CN.md)
+- [`packaging/windows/README.md`](./packaging/windows/README.md)
 
 ## Runtime API
 

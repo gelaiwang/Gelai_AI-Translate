@@ -12,6 +12,7 @@ dependencies = [
   "python-dotenv==1.2.1",
   "PyYAML==6.0.3",
   "rich==14.2.0",
+  "PySide6==6.10.0",
   "yt-dlp==2026.3.3",
   "srt==3.5.3",
   "python-dateutil==2.9.0.post0",
@@ -33,6 +34,7 @@ dependencies = [
 
 [project.scripts]
 gelai-translate = "gelai_translate.cli:main"
+gelai-translate-gui = "gelai_translate.gui.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
